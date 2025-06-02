@@ -1,0 +1,91 @@
+import streamlit as st
+import pandas as pd
+import os
+from openpyxl.styles import PatternFill, Font
+
+# ================== إعداد الصفحة ==================
+st.set_page_config(
+    page_title="Admin Averroes",
+    page_icon="📊",
+    layout="wide"
+)
+
+# ================== تنسيق مخصص ==================
+st.markdown(
+    """
+    <style>
+    body {
+        background-color: #f0f8ff;
+    }
+    .main-title {
+        font-size: 48px;
+        color: #2E4053;
+        font-weight: bold;
+        text-align: center;
+        padding: 20px 0;
+    }
+    .subtitle {
+        font-size: 20px;
+        color: #555;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ================== عنوان الصفحة ==================
+st.markdown("<div class='main-title'>Admin Averroes</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>By Mohamed Abd ElGhany</div>", unsafe_allow_html=True)
+
+# ================== دالة معالجة البيانات ==================
+def sanitize_filename(name):
+    import re
+    s = str(name)
+    s = re.sub(r'[^\w\s.-]', '_', s)
+    s = re.sub(r'\s+', '_', s)
+    return s.strip('_')[:100]
+
+def split_excel_by_column(df, column_name):
+    output_files = []
+    unique_values = df[column_name].dropna().unique()
+
+    for value in unique_values:
+        filtered_df = df[df[column_name] == value]
+        filename = f"{sanitize_filename(value)}.xlsx"
+        output_path = os.path.join("output", filename)
+        os.makedirs("output", exist_ok=True)
+
+        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+            filtered_df.to_excel(writer, index=False, sheet_name="Data")
+            ws = writer.sheets["Data"]
+            fill = PatternFill(start_color="2E4053", end_color="2E4053", fill_type="solid")
+            font = Font(bold=True, color="FFFFFF")
+            for cell in ws[1]:
+                cell.fill = fill
+                cell.font = font
+
+        output_files.append(output_path)
+
+    return output_files
+
+# ================== واجهة الاستخدام ==================
+st.markdown("---")
+
+uploaded_file = st.file_uploader("📁 Upload Excel File (.xlsx)", type=["xlsx"])
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+    st.success("✅ File uploaded successfully!")
+    st.dataframe(df.head())
+
+    columns = df.columns.tolist()
+    selected_column = st.selectbox("🔽 Select Column to Split By:", columns)
+
+    if st.button("🚀 Split Excel"):
+        output_files = split_excel_by_column(df, selected_column)
+        st.success(f"✅ Done! {len(output_files)} files created.")
+        for file in output_files:
+            with open(file, "rb") as f:
+                st.download_button(f"📥 Download {os.path.basename(file)}", f, file_name=os.path.basename(file))
